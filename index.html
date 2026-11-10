@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#111827" />
+  <title>Auto Fare Checker</title>
+  <script src="https://cdn.tailwindcss.com/3.4.16"></script>
+  <style>
+    input[type=number]::-webkit-outer-spin-button,
+    input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+    input[type=number] { -moz-appearance: textfield; }
+    .tabular { font-variant-numeric: tabular-nums; }
+  </style>
+</head>
+<body class="bg-slate-100 text-slate-900 antialiased">
+  <main class="mx-auto max-w-md px-4 pb-28 pt-4 space-y-4">
+
+    <!-- Header -->
+    <header class="flex items-center justify-between">
+      <div>
+        <h1 class="text-xl font-extrabold tracking-tight">Auto Fare Checker</h1>
+        <p class="text-sm text-slate-600">App quote vs Govt meter tariff</p>
+      </div>
+      <button id="resetBtn" type="button"
+        class="rounded-xl border-2 border-slate-900 bg-white px-4 py-2 text-sm font-bold active:scale-95 transition">
+        Clear / Reset
+      </button>
+    </header>
+
+    <!-- Trip inputs -->
+    <section class="rounded-2xl bg-white p-4 shadow-sm space-y-4">
+      <div>
+        <label for="distance" class="block text-sm font-semibold text-slate-700">Trip distance</label>
+        <div class="mt-1 flex items-center rounded-xl border-2 border-slate-300 focus-within:border-slate-900 bg-white">
+          <input id="distance" type="number" inputmode="decimal" min="0" step="0.1" placeholder="0.0"
+            class="tabular w-full bg-transparent px-4 py-3 text-3xl font-extrabold outline-none" />
+          <span class="pr-4 text-lg font-bold text-slate-500">km</span>
+        </div>
+        <div class="mt-2 grid grid-cols-3 gap-2">
+          <button type="button" data-inc="0.5" class="inc-btn rounded-xl bg-slate-900 py-3 text-base font-bold text-white active:scale-95 transition">+0.5 km</button>
+          <button type="button" data-inc="1" class="inc-btn rounded-xl bg-slate-900 py-3 text-base font-bold text-white active:scale-95 transition">+1 km</button>
+          <button type="button" data-inc="5" class="inc-btn rounded-xl bg-slate-900 py-3 text-base font-bold text-white active:scale-95 transition">+5 km</button>
+        </div>
+      </div>
+
+      <label for="night" class="flex cursor-pointer items-center justify-between gap-3 rounded-xl bg-slate-50 px-3 py-3">
+        <span>
+          <span class="block font-bold">Night ride (1.5×)</span>
+          <span class="block text-xs text-slate-600">10:00 PM – 5:00 AM · <span id="nightAuto"></span></span>
+        </span>
+        <span class="relative inline-flex shrink-0">
+          <input id="night" type="checkbox" class="peer sr-only" />
+          <span class="h-8 w-14 rounded-full bg-slate-300 transition peer-checked:bg-indigo-600 peer-focus-visible:ring-4 peer-focus-visible:ring-indigo-300"></span>
+          <span class="absolute left-1 top-1 h-6 w-6 rounded-full bg-white shadow transition peer-checked:translate-x-6"></span>
+        </span>
+      </label>
+    </section>
+
+    <!-- Government fare card -->
+    <section class="rounded-2xl bg-slate-900 p-5 text-white shadow-md">
+      <div class="flex items-center justify-between">
+        <h2 class="text-sm font-semibold uppercase tracking-wider text-slate-300">Govt meter fare</h2>
+        <span id="nightPill" class="hidden rounded-full bg-indigo-500 px-2.5 py-0.5 text-xs font-bold">NIGHT 1.5×</span>
+      </div>
+      <p id="govtTotal" class="tabular mt-1 text-5xl font-black tracking-tight">₹0</p>
+      <p id="govtHint" class="mt-1 text-sm text-slate-400">Enter trip distance to calculate</p>
+
+      <dl class="mt-4 space-y-2 border-t border-white/15 pt-3 text-base tabular">
+        <div class="flex justify-between gap-2">
+          <dt class="text-slate-300">Base fare (first 1.8 km)</dt>
+          <dd id="bdBase" class="font-bold">₹0</dd>
+        </div>
+        <div class="flex justify-between gap-2">
+          <dt class="text-slate-300">Extra distance <span id="bdExtraLabel" class="text-slate-400"></span></dt>
+          <dd id="bdExtra" class="font-bold">₹0</dd>
+        </div>
+        <div id="bdNightRow" class="hidden flex justify-between gap-2">
+          <dt class="text-slate-300">Night surcharge (+50%)</dt>
+          <dd id="bdNight" class="font-bold text-indigo-300">₹0</dd>
+        </div>
+        <div class="flex justify-between gap-2 border-t border-white/15 pt-2 text-lg">
+          <dt class="font-bold">Total Govt fare</dt>
+          <dd id="bdTotal" class="font-black">₹0</dd>
+        </div>
+      </dl>
+    </section>
+
+    <!-- App fare inputs -->
+    <section class="rounded-2xl bg-white p-4 shadow-sm">
+      <h2 class="text-sm font-semibold text-slate-700">Price shown in the app <span class="font-normal text-slate-500">(fill any)</span></h2>
+      <div id="appInputs" class="mt-3 grid grid-cols-2 gap-3"></div>
+    </section>
+
+    <!-- Comparison -->
+    <section id="comparisonWrap" class="hidden space-y-3">
+      <div id="savingsBanner" class="hidden rounded-2xl bg-emerald-600 p-4 text-white shadow-sm"></div>
+      <div id="comparison" class="space-y-3"></div>
+    </section>
+
+    <p class="px-1 text-xs leading-relaxed text-slate-500">
+      Govt tariff: ₹50 up to 1.8 km, then ₹25/km. Night (10 PM – 5 AM): 1.5× (₹75 base, ₹37.50/km).
+      Badges: <b>Fair</b> = within ₹10 of the meter fare or cheaper; <b>Moderate</b> = up to 30% above; <b>High</b> = over 30% above.
+    </p>
+  </main>
+
+  <script>
+    // ---- Tariff constants ----
+    const BASE_KM = 1.8;
+    const BASE_FARE = 50;
+    const PER_KM = 25;
+    const NIGHT_MULT = 1.5;
+
+    const APPS = [
+      { id: 'nammayatri', name: 'Namma Yatri', short: 'NY', domain: 'nammayatri.in', badge: 'bg-yellow-400 text-black',  ring: 'focus-within:border-yellow-400', accent: 'border-l-yellow-400' },
+      { id: 'rapido',     name: 'Rapido',      short: 'R',  domain: 'rapido.bike', badge: 'bg-yellow-300 text-red-600 ring-2 ring-red-600 ring-inset', ring: 'focus-within:border-red-600', accent: 'border-l-red-600' },
+      { id: 'uber',       name: 'Uber',        short: 'U',  domain: 'uber.com', badge: 'bg-black text-white',        ring: 'focus-within:border-black', accent: 'border-l-black' },
+      { id: 'ola',        name: 'Ola',         short: 'O',  domain: 'book.olacabs.com', badge: 'bg-lime-500 text-black',     ring: 'focus-within:border-lime-500', accent: 'border-l-lime-500' },
+    ];
+
+    const $ = (id) => document.getElementById(id);
+    const distanceEl = $('distance');
+    const nightEl = $('night');
+
+    // ---- Helpers ----
+    const round2 = (n) => Math.round(n * 100) / 100;
+    function rupees(n) {
+      const v = round2(Math.abs(n));
+      return '₹' + v.toLocaleString('en-IN', {
+        minimumFractionDigits: Number.isInteger(v) ? 0 : 2,
+        maximumFractionDigits: 2,
+      });
+    }
+    function readNum(el) {
+      const v = parseFloat(el.value);
+      return Number.isFinite(v) && v > 0 ? v : 0;
+    }
+    function isNightNow(d = new Date()) {
+      const h = d.getHours();
+      return h >= 22 || h < 5;
+    }
+
+    function govtFare(distanceKm, night) {
+      if (distanceKm <= 0) return { base: 0, extraKm: 0, extra: 0, surcharge: 0, total: 0 };
+      const extraKm = Math.max(0, distanceKm - BASE_KM);
+      const base = BASE_FARE;
+      const extra = extraKm * PER_KM;
+      const day = base + extra;
+      const surcharge = night ? day * (NIGHT_MULT - 1) : 0;
+      return { base, extraKm, extra, surcharge, total: day + surcharge };
+    }
+
+    function fairness(diff, pct) {
+      if (diff <= 10 || pct < 10) return { label: 'Fair / Govt Rate', cls: 'bg-emerald-600 text-white', bar: 'text-emerald-700' };
+      if (pct <= 30)              return { label: 'Moderate Surge',   cls: 'bg-amber-400 text-black',  bar: 'text-amber-700' };
+      return                             { label: 'High Surge / Overpriced', cls: 'bg-red-600 text-white', bar: 'text-red-700' };
+    }
+
+    // ---- App logos (official site icons; falls back to a coloured letter badge offline) ----
+    function logoHtml(a, px) {
+      const fallback = `<span class="inline-flex items-center justify-center rounded-md px-1.5 text-xs font-black ${a.badge}" style="height:${px}px;min-width:${px}px">${a.short}</span>`;
+      const src = `https://www.google.com/s2/favicons?domain=${a.domain}&sz=128`;
+      return `<img src="${src}" alt="${a.name} logo" width="${px}" height="${px}"
+        class="shrink-0 rounded-md bg-white object-contain ring-1 ring-slate-200" style="width:${px}px;height:${px}px"
+        onerror="this.outerHTML=this.dataset.fallback" data-fallback='${fallback.replace(/'/g, '&#39;')}' />`;
+    }
+
+    // ---- Build app inputs ----
+    $('appInputs').innerHTML = APPS.map(a => `
+      <label for="app-${a.id}" class="block">
+        <span class="mb-1 flex items-center gap-2">
+          ${logoHtml(a, 24)}
+          <span class="text-sm font-bold">${a.name}</span>
+        </span>
+        <span class="flex items-center rounded-xl border-2 border-slate-300 ${a.ring} bg-white">
+          <span class="pl-3 text-xl font-bold text-slate-500">₹</span>
+          <input id="app-${a.id}" data-app="${a.id}" type="number" inputmode="decimal" min="0" step="1" placeholder="—"
+            class="app-input tabular w-full min-w-0 bg-transparent px-2 py-2.5 text-2xl font-extrabold outline-none" />
+        </span>
+      </label>
+    `).join('');
+
+    // ---- Render ----
+    function render() {
+      const dist = readNum(distanceEl);
+      const night = nightEl.checked;
+      const g = govtFare(dist, night);
+
+      $('govtTotal').textContent = rupees(g.total);
+      $('govtHint').textContent = dist > 0
+        ? `${round2(dist)} km · ${night ? 'Night' : 'Day'} tariff`
+        : 'Enter trip distance to calculate';
+      $('bdBase').textContent = rupees(g.base);
+      $('bdExtraLabel').textContent = dist > 0 ? `(${round2(g.extraKm)} km × ₹${PER_KM})` : '';
+      $('bdExtra').textContent = rupees(g.extra);
+      $('bdNightRow').classList.toggle('hidden', !night);
+      $('bdNightRow').classList.toggle('flex', night);
+      $('bdNight').textContent = '+' + rupees(g.surcharge);
+      $('bdTotal').textContent = rupees(g.total);
+      $('nightPill').classList.toggle('hidden', !night);
+
+      // App comparisons
+      const entries = APPS
+        .map(a => ({ ...a, price: readNum($('app-' + a.id)) }))
+        .filter(a => a.price > 0);
+
+      const wrap = $('comparisonWrap');
+      if (entries.length === 0) { wrap.classList.add('hidden'); return; }
+      wrap.classList.remove('hidden');
+
+      const sorted = [...entries].sort((x, y) => x.price - y.price);
+      const min = sorted[0].price;
+      const max = sorted[sorted.length - 1].price;
+      const multi = entries.length > 1;
+
+      const banner = $('savingsBanner');
+      if (multi && max > min) {
+        const best = sorted.filter(e => e.price === min).map(e => e.name).join(' / ');
+        const worst = sorted.filter(e => e.price === max).map(e => e.name).join(' / ');
+        banner.innerHTML = `
+          <p class="text-sm font-semibold opacity-90">Best value: ${best}</p>
+          <p class="tabular text-3xl font-black">Save ${rupees(max - min)}</p>
+          <p class="text-sm opacity-90">vs ${worst} (${rupees(max)})</p>`;
+        banner.classList.remove('hidden');
+      } else {
+        banner.classList.add('hidden');
+      }
+
+      $('comparison').innerHTML = sorted.map(a => {
+        const isBest = multi && a.price === min && max > min;
+        let diffHtml, pctHtml, badgeHtml;
+        if (g.total > 0) {
+          const diff = round2(a.price - g.total);
+          const pct = (diff / g.total) * 100;
+          const f = fairness(diff, pct);
+          const diffText = diff > 0 ? `+${rupees(diff)} extra` : diff < 0 ? `−${rupees(diff)} cheaper` : 'Same as meter';
+          const pctText = (pct > 0 ? '+' : pct < 0 ? '−' : '') + Math.abs(pct).toFixed(1) + '%';
+          diffHtml = `<p class="tabular text-xl font-extrabold ${f.bar}">${diffText}</p>`;
+          pctHtml = `<p class="tabular text-xl font-extrabold ${f.bar}">${pctText}</p>`;
+          badgeHtml = `<span class="rounded-full px-3 py-1 text-xs font-extrabold ${f.cls}">${f.label}</span>`;
+        } else {
+          diffHtml = `<p class="text-sm text-slate-500">Enter distance</p>`;
+          pctHtml = `<p class="text-sm text-slate-500">—</p>`;
+          badgeHtml = '';
+        }
+        return `
+          <article class="rounded-2xl border-l-8 ${a.accent} bg-white p-4 shadow-sm ${isBest ? 'ring-4 ring-emerald-500' : ''}">
+            <div class="flex items-center justify-between gap-2">
+              <div class="flex items-center gap-2">
+                ${logoHtml(a, 32)}
+                <h3 class="text-lg font-extrabold">${a.name}</h3>
+              </div>
+              ${isBest ? '<span class="rounded-full bg-emerald-500 px-3 py-1 text-xs font-black text-white">★ Best Value</span>' : ''}
+            </div>
+            <div class="mt-2 flex items-end justify-between gap-2">
+              <p class="tabular text-4xl font-black">${rupees(a.price)}</p>
+              ${badgeHtml}
+            </div>
+            <div class="mt-3 grid grid-cols-2 gap-3 border-t border-slate-100 pt-3">
+              <div>
+                <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">vs Govt fare</p>
+                ${diffHtml}
+              </div>
+              <div>
+                <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Markup</p>
+                ${pctHtml}
+              </div>
+            </div>
+          </article>`;
+      }).join('');
+    }
+
+    // ---- Night auto-detect ----
+    function applyAutoNight() {
+      const n = isNightNow();
+      nightEl.checked = n;
+      $('nightAuto').textContent = n ? 'auto: on (night now)' : 'auto: off (daytime now)';
+    }
+
+    // ---- Events ----
+    distanceEl.addEventListener('input', render);
+    nightEl.addEventListener('change', render);
+    document.addEventListener('input', (e) => { if (e.target.classList.contains('app-input')) render(); });
+
+    document.querySelectorAll('.inc-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const next = round2(readNum(distanceEl) + parseFloat(btn.dataset.inc));
+        distanceEl.value = next;
+        render();
+      });
+    });
+
+    $('resetBtn').addEventListener('click', () => {
+      distanceEl.value = '';
+      document.querySelectorAll('.app-input').forEach(i => (i.value = ''));
+      applyAutoNight();
+      render();
+      distanceEl.focus();
+    });
+
+    applyAutoNight();
+    render();
+  </script>
+</body>
+</html>
